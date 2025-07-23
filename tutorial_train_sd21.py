@@ -33,3 +33,26 @@ trainer = pl.Trainer(gpus=1, precision=32, callbacks=[logger])
 
 # Train!
 trainer.fit(model, dataloader)
+
+
+###############################
+# Kill the job after training #
+###############################
+import subprocess
+
+def cancel_slurm_job(job_id):
+    try:
+        # Construct the command
+        command = ["scancel", str(job_id)]
+        
+        # Execute the command
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+        
+        # Print the result
+        print("Job canceled successfully:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print("Failed to cancel job:", e.stderr)
+
+# Call the function with your job ID
+job_id = 5562633
+cancel_slurm_job(job_id)
