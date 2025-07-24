@@ -14,6 +14,7 @@ logger_freq = 300
 learning_rate = 1e-5
 sd_locked = True
 only_mid_control = False
+max_epochs = 5  # Set the number of epochs for training
 
 
 # First use cpu to load models. Pytorch Lightning will automatically move it to GPUs.
@@ -28,8 +29,31 @@ model.only_mid_control = only_mid_control
 dataset = MyDataset()
 dataloader = DataLoader(dataset, num_workers=0, batch_size=batch_size, shuffle=True)
 logger = ImageLogger(batch_frequency=logger_freq)
-trainer = pl.Trainer(gpus=1, precision=32, callbacks=[logger])
+trainer = pl.Trainer(gpus=1, precision=32, callbacks=[logger], max_epochs=max_epochs)
 
 
 # Train!
 trainer.fit(model, dataloader)
+
+
+###############################
+# Kill the job after training #
+###############################
+import subprocess
+
+def cancel_slurm_job(job_id):
+    try:
+        # Construct the command
+        command = ["scancel", str(job_id)]
+        
+        # Execute the command
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+        
+        # Print the result
+        print("Job canceled successfully:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print("Failed to cancel job:", e.stderr)
+
+# Call the function with your job ID
+job_id = 5562633
+cancel_slurm_job(job_id)
