@@ -6,6 +6,10 @@ from tutorial_dataset import MyDataset
 from cldm.logger import ImageLogger
 from cldm.model import create_model, load_state_dict
 
+import wandb
+import os
+import datetime
+
 
 # Configs
 resume_path = './models/control_sd21_ini.ckpt'
@@ -14,7 +18,29 @@ logger_freq = 300
 learning_rate = 1e-5
 sd_locked = True
 only_mid_control = False
+
+dot_env_path = "./env"
 max_epochs = 5  # Set the number of epochs for training
+
+# Initialize WandB
+def init_wandb(dot_env_path):
+    if os.path.exists(dot_env_path):
+        with open(dot_env_path, 'r') as f:
+            for line in f:
+                if line.startswith("WANDB_API_KEY"):
+                    os.environ["WANDB_API_KEY"] = line.replace('WANDB_API_KEY=','').strip(" \"")
+        API_KEY = os.environ.get("WANDB_API_KEY")
+        wandb.login(key=API_KEY)
+
+    wandb_project = "ControlNet"
+    init_timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    wandb_name = f"sd21>{init_timestamp}"
+    wandb.init(
+        project=wandb_project,
+        name=wandb_name,
+        tags=["sd21", f"{max_epochs} epochs", f"{batch_size} batch size"]
+    )
+init_wandb(dot_env_path)
 
 
 # First use cpu to load models. Pytorch Lightning will automatically move it to GPUs.
