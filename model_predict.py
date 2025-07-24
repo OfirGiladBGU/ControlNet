@@ -214,5 +214,55 @@ def test_predict():
         print("Prediction failed.")
 
 
+def test_predict_online():
+    resume_path = './lightning_logs/version_5562633/checkpoints/epoch=22-step=274999.ckpt'
+    test_output_path = './output_images/'
+
+    hyper_parameters = dict(
+        negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
+        added_prompt="best quality, extremely detailed",
+        num_samples=1,
+        image_resolution=512,
+        ddim_steps=20,
+        guess_mode=False,
+        strength=1.0,
+        scale=9.0,
+        seed=-1,
+        eta=0.0
+    )
+
+    ########
+    # Flow #
+    ########
+    os.makedirs(test_output_path, exist_ok=True)
+    model, ddim_sampler = load_model(resume_path)
+
+    online_flag = True
+    while online_flag:
+        test_img_path = input("Enter the path to the test image:\n")
+        if test_img_path.lower().strip() == 'exit':
+            print("Exiting the prediction loop.")
+            break
+
+        test_prompt = input("Enter the prompt for image generation:\n")
+        if test_prompt.lower().strip() == 'exit':
+            print("Exiting the prediction loop.")
+            break
+        
+        results = single_predict(
+            model=model,
+            ddim_sampler=ddim_sampler,
+            test_img_path=test_img_path,
+            test_prompt=test_prompt,
+            test_output_path=test_output_path,
+            hyper_parameters=hyper_parameters
+        )
+        if results is not None:
+            print("Prediction completed successfully.")
+        else:
+            print("Prediction failed.")
+
+
 if __name__ == "__main__":
-    test_predict()
+    # test_predict()
+    test_predict_online()
