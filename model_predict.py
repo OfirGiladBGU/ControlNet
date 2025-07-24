@@ -9,6 +9,7 @@ from cldm.model import create_model, load_state_dict
 # Additional imports for prediction
 import config
 import os
+import pathlib
 import cv2
 import einops
 import numpy as np
@@ -19,18 +20,42 @@ from cldm.ddim_hacked import DDIMSampler
 from pytorch_lightning import seed_everything
 from annotator.util import resize_image, HWC3
 
+# Root path for the project
+root_path = str(pathlib.Path(__file__).parent)
 
-def predict(control_image, prompt, 
-           negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
-           added_prompt="best quality, extremely detailed",
-           num_samples=1,
-           image_resolution=512,
-           ddim_steps=20,
-           guess_mode=False,
-           strength=1.0,
-           scale=9.0,
-           seed=-1,
-           eta=0.0):
+
+def load_model(resume_path):
+    """
+    Load the ControlNet model from a checkpoint.
+    Args:
+        resume_path: Path to the model checkpoint.
+    Returns:
+        model: Loaded ControlNet model.
+        ddim_sampler: DDIM sampler for image generation.
+    """
+    # First use cpu to load models. Pytorch Lightning will automatically move it to GPUs.
+    model_path = os.path.join(root_path, 'models/cldm_v21.yaml')
+    model = create_model(model_path).cpu()
+    model.load_state_dict(load_state_dict(resume_path, location='cpu'))
+    print("Model successfully loaded!~")
+
+    model = model.cuda()
+    ddim_sampler = DDIMSampler(model)
+    return model, ddim_sampler
+
+
+def predict(model, ddim_sampler,    # model and sampler
+            control_image, prompt,  # control image and prompt
+            negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
+            added_prompt="best quality, extremely detailed",
+            num_samples=1,
+            image_resolution=512,
+            ddim_steps=20,
+            guess_mode=False,
+            strength=1.0,
+            scale=9.0,
+            seed=-1,
+            eta=0.0):
     """
     Generate images using ControlNet model.
     
@@ -112,71 +137,81 @@ def predict(control_image, prompt,
         return results
 
 
-def predict_batch(control_images, prompts, **kwargs):
+def single_predict(model, ddim_sampler, 
+                   test_img_path, test_prompt, test_output_path,
+                   hyper_parameters):
     """
-    Generate images for multiple control images and prompts.
-    
-    Args:
-        control_images: List of control images
-        prompts: List of prompts (should match length of control_images)
-        **kwargs: Additional arguments for predict function
-    
-    Returns:
-        List of lists containing generated images for each input
-    """
-    if len(control_images) != len(prompts):
-        raise ValueError("Number of control images must match number of prompts")
-    
-    results = []
-    for control_img, prompt in zip(control_images, prompts):
-        result = predict(control_img, prompt, **kwargs)
-        results.append(result)
-    
-    return results
-
-
-# Example usage function
-def example_usage():
-    """
-    Example of how to use the prediction function
+    Single image prediction function.
     """
     # Load a test image
-    test_img_path = '/home/ofirgila/PycharmProjects/ControlNet/training/fill50k/source/0.png'
-    test_prompt = "blue and yellow"
     if os.path.exists(test_img_path):
         control_img = cv2.imread(test_img_path)
         control_img = cv2.cvtColor(control_img, cv2.COLOR_BGR2RGB)
         
         # Generate image
         results = predict(
+            model=model,
+            ddim_sampler=ddim_sampler,
             control_image=control_img,
             prompt=test_prompt,
-            num_samples=2,
-            ddim_steps=20,
-            scale=9.0
+            **hyper_parameters
         )
         
         # Save results
         for i, result in enumerate(results):
-            cv2.imwrite(f'generated_image_{i}.png', cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
+            input_stem = pathlib.Path(test_img_path).stem
+            input_suffix = pathlib.Path(test_img_path).suffix
+            output_filepath = os.path.join(test_output_path, f'{input_stem}_{i}{input_suffix}')
+            cv2.imwrite(output_filepath, cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
         
         print(f"Generated {len(results)} images")
         return results
+    
+    # Fallback if test image is not found
     else:
         print(f"Test image not found at {test_img_path}")
         return None
 
 
+def test_predict():
+    ###########
+    # Configs #
+    ###########
+    resume_path = './lightning_logs/version_5562633/checkpoints/epoch=22-step=274999.ckpt'
+    test_img_path = '/home/ofirgila/PycharmProjects/ControlNet/my_images/test_circle.png'
+    test_prompt = "red and green"
+    test_output_path = './generated_images/'
+
+    hyper_parameters = dict(
+        negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
+        added_prompt="best quality, extremely detailed",
+        num_samples=1,
+        image_resolution=512,
+        ddim_steps=20,
+        guess_mode=False,
+        strength=1.0,
+        scale=9.0,
+        seed=-1,
+        eta=0.0
+    )
+
+    ########
+    # Flow #
+    ########
+    model, ddim_sampler = load_model(resume_path)
+    results = single_predict(
+        model=model,
+        ddim_sampler=ddim_sampler,
+        test_img_path=test_img_path,
+        test_prompt=test_prompt,
+        test_output_path=test_output_path,
+        hyper_parameters=hyper_parameters
+    )
+    if results is not None:
+        print("Prediction completed successfully.")
+    else:
+        print("Prediction failed.")
+
+
 if __name__ == "__main__":
-    # Configs
-    resume_path = './lightning_logs/version_5562633/checkpoints/epoch=3-step=49999.ckpt'
-
-    # First use cpu to load models. Pytorch Lightning will automatically move it to GPUs.
-    model = create_model('./models/cldm_v21.yaml').cpu()
-    model.load_state_dict(load_state_dict(resume_path, location='cpu'))
-    print("Model successfully loaded!~")
-
-    model = model.cuda()
-    ddim_sampler = DDIMSampler(model)
-
-    example_usage()
+    test_predict()
