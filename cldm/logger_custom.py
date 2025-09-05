@@ -99,6 +99,8 @@ class ImageLogger(Callback):
                 if self.clamp:
                     images[k] = torch.clamp(images[k], -1., 1.)
 
+        single_mode = True
+        merged_grids = []
         for k in images:
             grid = torchvision.utils.make_grid(images[k], nrow=1)
             if self.rescale:
@@ -107,9 +109,23 @@ class ImageLogger(Callback):
             grid = grid.numpy()
             grid = (grid * 255).astype(np.uint8)
 
-            remote_filename = "custom_{}_gs-{:06}_e-{:06}_b-{:06}".format(k, global_step, current_epoch, batch_idx)
+            if single_mode:
+                remote_filename = "custom_{}_gs-{:06}_e-{:06}_b-{:06}".format(k, global_step, current_epoch, batch_idx)
+                wandb.log(
+                    data={f"[{remote_filename}]": wandb.Image(grid)}
+                )
+            else:
+                merged_grids.append(grid)
+
+        # After the loop, merge and upload
+        if single_mode is False:
+            merged = torch.cat(merged_grids, dim=1)  # vertical stack
+            merged = merged.transpose(0, 1).transpose(1, 2).squeeze(-1)
+            merged = merged.numpy()
+            merged = (merged * 255).astype(np.uint8)
+            remote_filename = "custom_gs-{:06}_e-{:06}_b-{:06}".format(global_step, current_epoch, batch_idx)
             wandb.log(
-                data={f"[{remote_filename}]": wandb.Image(grid)}
+                data={f"[{remote_filename}]": wandb.Image(merged)}
             )
 
     def log_img(self, pl_module, batch, batch_idx, split="train"):
