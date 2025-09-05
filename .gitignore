@@ -143,6 +143,7 @@ dmypy.json
 .pyre/
 
 # Custom additions
+.vscode/
 wandb/
 my_inputs/
 my_outputs/
