@@ -49,10 +49,11 @@ class CustomDataset(Dataset):
 
 
 class ImageLogger(Callback):
-    def __init__(self, batch_frequency=2000, max_images=4, clamp=True, increase_log_steps=True,
+    def __init__(self, dataset=None, batch_frequency=2000, max_images=4, clamp=True, increase_log_steps=True,
                  rescale=True, disabled=False, log_on_batch_idx=False, log_first_step=False,
                  log_images_kwargs=None):
         super().__init__()
+        self.dataset = dataset
         self.rescale = rescale
         self.batch_freq = batch_frequency
         self.max_images = max_images
@@ -84,7 +85,7 @@ class ImageLogger(Callback):
             Image.fromarray(grid).save(path)
 
     def log_wandb(self, pl_module, global_step, current_epoch, batch_idx, split="train"):
-        test_images_path = os.path.join(pl_module.logger.save_dir, "training", "test_images")
+        test_images_path = f"{self.dataset.data_root}_test"
         test_dataset = CustomDataset(test_images_path)
         dataloader = DataLoader(test_dataset, num_workers=0, batch_size=1, shuffle=False)
         batch = next(iter(dataloader))

@@ -2,7 +2,7 @@ from share import *
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from tutorial_dataset import MyDataset
+from tutorial_dataset_custom import MyDataset
 from cldm.logger_custom import ImageLogger
 from cldm.model import create_model, load_state_dict
 
@@ -19,6 +19,7 @@ learning_rate = 1e-5
 sd_locked = True
 only_mid_control = False
 
+data_root = "./training/fill50k/"
 dot_env_path = "./env"
 max_epochs = 5  # Set the number of epochs for training
 
@@ -52,9 +53,9 @@ model.only_mid_control = only_mid_control
 
 
 # Misc
-dataset = MyDataset()
+dataset = MyDataset(data_root=data_root)
 dataloader = DataLoader(dataset, num_workers=0, batch_size=batch_size, shuffle=True)
-logger = ImageLogger(batch_frequency=logger_freq)
+logger = ImageLogger(dataset=dataset, batch_frequency=logger_freq)
 trainer = pl.Trainer(gpus=1, precision=32, callbacks=[logger], max_epochs=max_epochs)
 
 
@@ -81,5 +82,5 @@ def cancel_slurm_job(job_id):
         print("Failed to cancel job:", e.stderr)
 
 # Call the function with your job ID
-job_id = 5562633
-cancel_slurm_job(job_id)
+# job_id = 5860013
+# cancel_slurm_job(job_id)

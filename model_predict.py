@@ -178,9 +178,9 @@ def test_predict():
     # Configs #
     ###########
     resume_path = './lightning_logs/version_5562633/checkpoints/epoch=22-step=274999.ckpt'
-    test_img_path = '/home/ofirgila/PycharmProjects/ControlNet/my_images/test_circle.png'
+    test_img_path = './my_inputs/test_circle.png'
     test_prompt = "red and green"
-    test_output_path = './output_images/'
+    test_output_path = './my_outputs/'
 
     hyper_parameters = dict(
         negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
@@ -216,7 +216,7 @@ def test_predict():
 
 def test_predict_online():
     resume_path = './lightning_logs/version_5562633/checkpoints/epoch=22-step=274999.ckpt'
-    test_output_path = './output_images/'
+    test_output_path = './my_outputs/'
 
     hyper_parameters = dict(
         negative_prompt="longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
