@@ -99,7 +99,7 @@ class ImageLogger(Callback):
                 if self.clamp:
                     images[k] = torch.clamp(images[k], -1., 1.)
 
-        single_mode = True
+        single_mode = False
         merged_grids = []
         for k in images:
             grid = torchvision.utils.make_grid(images[k], nrow=1)
@@ -119,10 +119,7 @@ class ImageLogger(Callback):
 
         # After the loop, merge and upload
         if single_mode is False:
-            merged = torch.cat(merged_grids, dim=1)  # vertical stack
-            merged = merged.transpose(0, 1).transpose(1, 2).squeeze(-1)
-            merged = merged.numpy()
-            merged = (merged * 255).astype(np.uint8)
+            merged = np.concatenate(merged_grids, axis=0)  # vertical stack
             remote_filename = "custom_gs-{:06}_e-{:06}_b-{:06}".format(global_step, current_epoch, batch_idx)
             wandb.log(
                 data={f"[{remote_filename}]": wandb.Image(merged)}
@@ -166,6 +163,4 @@ class ImageLogger(Callback):
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
         if not self.disabled:
             self.log_img(pl_module, batch, batch_idx, split="train")
-            
-            if hasattr(outputs, 'item'):
-                wandb.log({'train_loss': outputs.item()}, step=trainer.global_step)
+            wandb.log({'train_loss': outputs}, step=trainer.global_step)
