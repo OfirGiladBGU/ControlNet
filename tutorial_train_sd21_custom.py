@@ -35,7 +35,7 @@ def init_wandb(dot_env_path):
 
     wandb_project = "ControlNet"
     init_timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    wandb_name = f"sd21>{init_timestamp}"
+    wandb_name = f"cn-sd21>{init_timestamp}"
     wandb.init(
         project=wandb_project,
         name=wandb_name,
