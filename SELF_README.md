@@ -10,6 +10,11 @@ For custom prediction, the following are used:
 - [model_predict.py](model_predict.py) - With interactive mode to select image to run
 
 
+IMPORTANT:
+- [logger_custom.py](cldm/logger_custom.py) assumes that a '<dataset>_test' folder exists, for `fill50k` example, the following folders are required:
+    - `training/fill50k`
+    - `training/fill50k_test`
+
 ## Notices:
 
 - Training local test images are exported to the folder: [image_log/train](image_log/<date>/train).
