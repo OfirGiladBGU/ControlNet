@@ -19,7 +19,8 @@ learning_rate = 1e-5
 sd_locked = True
 only_mid_control = False
 
-data_root = "../Stable_Diffusion/data"
+data_root = "./training/data_grads_v3"
+test_data_root = "./training/data_grads_v3_test"
 dot_env_path = "./env"
 max_epochs = 1  # Set the number of epochs for training
 
@@ -55,7 +56,7 @@ model.only_mid_control = only_mid_control
 # Misc
 dataset = MyDataset(data_root=data_root)
 dataloader = DataLoader(dataset, num_workers=0, batch_size=batch_size, shuffle=True)
-logger = ImageLogger(dataset=dataset, batch_frequency=logger_freq)
+logger = ImageLogger(dataset=dataset, batch_frequency=logger_freq, test_data_root=test_data_root)
 trainer = pl.Trainer(gpus=1, precision=32, callbacks=[logger], max_epochs=max_epochs)
 
 

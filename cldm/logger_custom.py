@@ -8,50 +8,19 @@ from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities.distributed import rank_zero_only
 
 import wandb
-import json
-import cv2
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
-
-
-class CustomDataset(Dataset):
-    def __init__(self, test_images_path):
-        self.test_images_path = test_images_path
-        self.data = []
-        with open(os.path.join(self.test_images_path, 'prompt.json'), 'rt') as f:
-            for line in f:
-                self.data.append(json.loads(line))
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        item = self.data[idx]
-
-        source_filename = item['source']
-        target_filename = item['target']
-        prompt = item['prompt']
-
-        source = cv2.imread(os.path.join(self.test_images_path, source_filename))
-        target = cv2.imread(os.path.join(self.test_images_path, target_filename))
-
-        # Do not forget that OpenCV read images in BGR order.
-        source = cv2.cvtColor(source, cv2.COLOR_BGR2RGB)
-        target = cv2.cvtColor(target, cv2.COLOR_BGR2RGB)
-
-        # Normalize source images to [0, 1].
-        source = source.astype(np.float32) / 255.0
-
-        # Normalize target images to [-1, 1].
-        target = (target.astype(np.float32) / 127.5) - 1.0
-
-        return dict(jpg=target, txt=prompt, hint=source)
+import sys
+import pathlib
+ROOT_DIR = pathlib.Path(str(__file__)).resolve().parent.parent
+sys.path.append(str(ROOT_DIR))
+# from tutorial_dataset import MyDataset
+from tutorial_dataset_custom import MyDataset
+from torch.utils.data import DataLoader
 
 
 class ImageLogger(Callback):
     def __init__(self, dataset=None, batch_frequency=2000, max_images=4, clamp=True, increase_log_steps=True,
                  rescale=True, disabled=False, log_on_batch_idx=False, log_first_step=False,
-                 log_images_kwargs=None):
+                 log_images_kwargs=None, test_data_root=None):
         super().__init__()
         self.dataset = dataset
         self.rescale = rescale
@@ -67,6 +36,13 @@ class ImageLogger(Callback):
 
         import datetime
         self.init_timestamp = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
+
+        # Init wandb test dataset and dataloader
+        if test_data_root is None:
+            raise ValueError("test_data_root must be provided for ImageLogger.")
+        self.test_data_root = test_data_root
+        self.test_dataset = MyDataset(data_root=self.test_data_root)
+        self.test_dataloader = DataLoader(self.test_dataset, num_workers=0, batch_size=len(self.test_dataset.data), shuffle=False)
 
     @rank_zero_only
     def log_local(self, save_dir, split, images, global_step, current_epoch, batch_idx):
@@ -85,10 +61,7 @@ class ImageLogger(Callback):
             Image.fromarray(grid).save(path)
 
     def log_wandb(self, pl_module, global_step, current_epoch, batch_idx, split="train"):
-        test_images_path = f"{self.dataset.data_root}_test"
-        test_dataset = CustomDataset(test_images_path)
-        dataloader = DataLoader(test_dataset, num_workers=0, batch_size=1, shuffle=False)
-        batch = next(iter(dataloader))
+        batch = next(iter(self.test_dataloader))
 
         images = pl_module.log_images(batch, split=split, **self.log_images_kwargs)
         for k in images:
@@ -151,6 +124,7 @@ class ImageLogger(Callback):
             self.log_local(pl_module.logger.save_dir, split, images,
                            pl_module.global_step, pl_module.current_epoch, batch_idx)
 
+            # NOTE: Log to wandb
             self.log_wandb(pl_module, pl_module.global_step, pl_module.current_epoch, 
                            batch_idx, split=split)
 
@@ -163,4 +137,4 @@ class ImageLogger(Callback):
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
         if not self.disabled:
             self.log_img(pl_module, batch, batch_idx, split="train")
-            wandb.log({'train_loss': outputs}, step=trainer.global_step)
+            wandb.log({'train_loss': outputs['loss'].item()}, step=trainer.global_step)
