@@ -46,10 +46,10 @@ class MyDataset(Dataset):
 
 
 class DynamicMyDataset(Dataset):
-    def __init__(self, image_list, prompt_list):
+    def __init__(self, image_path_list, prompt_list):
         self.data = []
         
-        for source_path, prompt in zip(image_list, prompt_list):
+        for source_path, prompt in zip(image_path_list, prompt_list):
             item = {
                 'source': source_path,
                 'target': source_path,  # Dummy target; replace as needed

@@ -14,11 +14,15 @@ import os
 import pathlib
 import numpy as np
 import torch
+from tqdm import tqdm
 
 # Root path for the project
 root_path = str(pathlib.Path(__file__).parent)
 
 
+########
+# Core #
+########
 def load_model(resume_path):
     """
     Load the ControlNet model from a checkpoint.
@@ -40,7 +44,7 @@ def load_model(resume_path):
     return model
 
 
-def predict(model, control_image_path, prompt):
+def predict(model, image_path_list, prompt_list, batch_size=1):
     """
     Generate images using ControlNet model.
     
@@ -51,65 +55,65 @@ def predict(model, control_image_path, prompt):
         List of generated images as numpy arrays
     """
     # Preprocess control image
-    dataset = DynamicMyDataset([control_image_path], [prompt])
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
-    batch = next(iter(dataloader))
+    dataset = DynamicMyDataset(image_path_list, prompt_list)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
-    with torch.no_grad():
-        images = model.log_images(batch)
-
-    clamp = True
-    for k in images:
-        N = images[k].shape[0]
-        images[k] = images[k][:N]
-        if isinstance(images[k], torch.Tensor):
-            images[k] = images[k].detach().cpu()
-            if clamp:
-                images[k] = torch.clamp(images[k], -1., 1.)
-
-    # root = os.path.join(save_dir, "image_log", self.init_timestamp, split)
-    rescale = True
     results = []
-    for k in images:
-        if "samples" in k:
-            samples = images[k]
-            if rescale:
-                samples = (samples + 1.0) / 2.0  # -1,1 -> 0,1; c,h,w
-            samples = samples.transpose(1, 2).transpose(2, 3)  # b,c,h,w -> b,h,w,c
-            samples = samples.numpy()
-            samples = (samples * 255).astype(np.uint8)
+    for batch in dataloader: 
+        with torch.no_grad():
+            images = model.log_images(batch)
+
+        clamp = True
+        for k in images:
+            N = images[k].shape[0]
+            images[k] = images[k][:N]
+            if isinstance(images[k], torch.Tensor):
+                images[k] = images[k].detach().cpu()
+                if clamp:
+                    images[k] = torch.clamp(images[k], -1., 1.)
+
+        rescale = True
+        for k in images:
             if "samples" in k:
-                results.extend([samples[i] for i in range(samples.shape[0])])
+                samples = images[k]
+                if rescale:
+                    samples = (samples + 1.0) / 2.0  # -1,1 -> 0,1; c,h,w
+                samples = samples.transpose(1, 2).transpose(2, 3)  # b,c,h,w -> b,h,w,c
+                samples = samples.numpy()
+                samples = (samples * 255).astype(np.uint8)
+                if "samples" in k:
+                    results.extend([samples[i] for i in range(samples.shape[0])])
 
     return results
 
 
-def single_predict(model, test_img_path, test_prompt, test_output_path):
+#####################
+# Single Prediction #
+#####################
+def single_predict(model, image_path, prompt, output_folder_path):
     """
     Single image prediction function.
     """
     # Load a test image
-    if os.path.exists(test_img_path):
+    if os.path.exists(image_path):
         # Generate image
         results = predict(
             model=model,
-            control_image_path=test_img_path,
-            prompt=test_prompt,
+            image_path_list=[image_path],
+            prompt_list=[prompt],
         )
         
-        # Save results
-        for i, result in enumerate(results):
-            input_stem = pathlib.Path(test_img_path).stem
-            input_suffix = pathlib.Path(test_img_path).suffix
-            output_filepath = os.path.join(test_output_path, f'{input_stem}_{i}{input_suffix}')
-            Image.fromarray(result).save(output_filepath)
-        
-        print(f"Generated {len(results)} images")
-        return results
+        # Save results (Single image case)
+        result = results[0]
+        input_name = pathlib.Path(image_path).name
+        output_filepath = os.path.join(output_folder_path, input_name)
+        Image.fromarray(result).save(output_filepath)
+        print(f"Generated image at {output_filepath}")
+        return result
     
     # Fallback if test image is not found
     else:
-        print(f"Test image not found at {test_img_path}")
+        print(f"Test image not found at {image_path}")
         return None
 
 
@@ -118,22 +122,22 @@ def test_predict():
     # Configs #
     ###########
     resume_path = './lightning_logs/version_5562633/checkpoints/epoch=22-step=274999.ckpt'
-    test_img_path = './my_inputs/test_circle.png'
+    test_image_path = './my_inputs/test_circle.png'
     test_prompt = "red and green"
-    test_output_path = './my_outputs/'
+    test_output_folder_path = './my_outputs/'
 
     ########
     # Flow #
     ########
-    os.makedirs(test_output_path, exist_ok=True)
+    os.makedirs(test_output_folder_path, exist_ok=True)
     model = load_model(resume_path)
-    results = single_predict(
+    result = single_predict(
         model=model,
-        test_img_path=test_img_path,
-        test_prompt=test_prompt,
-        test_output_path=test_output_path
+        image_path=test_image_path,
+        prompt=test_prompt,
+        output_folder_path=test_output_folder_path
     )
-    if results is not None:
+    if result is not None:
         print("Prediction completed successfully.")
     else:
         print("Prediction failed.")
@@ -141,18 +145,18 @@ def test_predict():
 
 def test_predict_online():
     resume_path = './lightning_logs/version_5562633/checkpoints/epoch=22-step=274999.ckpt'
-    test_output_path = './my_outputs/'
+    test_output_folder_path = './my_outputs/'
 
     ########
     # Flow #
     ########
-    os.makedirs(test_output_path, exist_ok=True)
+    os.makedirs(test_output_folder_path, exist_ok=True)
     model = load_model(resume_path)
 
     online_flag = True
     while online_flag:
-        test_img_path = input("Enter the path to the test image:\n")
-        if test_img_path.lower().strip() == 'exit':
+        test_image_path = input("Enter the path to the test image:\n")
+        if test_image_path.lower().strip() == 'exit':
             print("Exiting the prediction loop.")
             break
 
@@ -161,19 +165,83 @@ def test_predict_online():
             print("Exiting the prediction loop.")
             break
         
-        results = single_predict(
+        result = single_predict(
             model=model,
-            test_img_path=test_img_path,
-            test_prompt=test_prompt,
-            test_output_path=test_output_path
+            image_path=test_image_path,
+            prompt=test_prompt,
+            output_folder_path=test_output_folder_path
         )
-        if results is not None:
+        if result is not None:
             print("Prediction completed successfully.")
         else:
             print("Prediction failed.")
 
 
+##########################
+# Multi-image Prediction #
+##########################
+def folder_predict(model, input_folder_path, prompt, output_folder_path, batch_size=1):
+    """
+    Multi-image prediction function.
+    """
+    if os.path.exists(input_folder_path):
+        image_path_list = pathlib.Path(input_folder_path).glob('*.*')
+        image_path_list = [str(p) for p in image_path_list]
+        prompt_list = [prompt] * len(image_path_list)
+        
+        # Generate image
+        results = predict(
+            model=model,
+            image_path_list=image_path_list,
+            prompt_list=prompt_list,
+            batch_size=batch_size
+        )
+        
+        # Save results
+        print(f"Saving generated images to {output_folder_path}...")
+        for i, result in tqdm(enumerate(results)):
+            input_name = pathlib.Path(image_path_list[i]).relative_to(input_folder_path)
+            output_filepath = os.path.join(output_folder_path, str(input_name))
+            Image.fromarray(result).save(output_filepath)
+            
+        print(f"Generated {len(results)} images")
+        return results
+    
+    # Fallback if test image is not found
+    else:
+        print(f"Input folder does not exist at {input_folder_path}")
+        return None
+
+
+def test_predict_folder():
+    ###########
+    # Configs #
+    ###########
+    resume_path = './lightning_logs/version_8280725/checkpoints/epoch=0-step=9999.ckpt'
+    test_input_folder = './my_inputs_folder/'
+    test_prompt = "Stippling"
+    test_output_path = './my_outputs_folder/'
+
+    ########
+    # Flow #
+    ########
+    os.makedirs(test_output_path, exist_ok=True)
+    model = load_model(resume_path)
+
+    results = folder_predict(
+        model=model,
+        input_folder_path=test_input_folder,
+        prompt=test_prompt,
+        output_folder_path=test_output_path,
+        batch_size=4
+    )
+    if results is not None:
+        print("Folder prediction completed successfully.")
+    else:
+        print("Folder prediction failed.")
+
+
 if __name__ == "__main__":
-    test_predict()
+    # test_predict()
     # test_predict_online()
-    # TODO: Predict folder
+    test_predict_folder()

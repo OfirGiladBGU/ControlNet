@@ -145,5 +145,5 @@ dmypy.json
 # Custom additions
 .vscode/
 wandb/
-my_inputs/
-my_outputs/
+my_inputs*/
+my_outputs*/
