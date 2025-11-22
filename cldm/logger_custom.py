@@ -7,6 +7,7 @@ from PIL import Image
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.utilities.distributed import rank_zero_only
 
+# NOTE: New imports
 import wandb
 import sys
 import pathlib
@@ -15,6 +16,7 @@ sys.path.append(str(ROOT_DIR))
 # from tutorial_dataset import MyDataset
 from tutorial_dataset_custom import MyDataset
 from torch.utils.data import DataLoader
+from ldm.util import log_txt_as_img
 
 
 class ImageLogger(Callback):
@@ -43,6 +45,8 @@ class ImageLogger(Callback):
         self.test_data_root = test_data_root
         self.test_dataset = MyDataset(data_root=self.test_data_root)
         self.test_dataloader = DataLoader(self.test_dataset, num_workers=0, batch_size=len(self.test_dataset.data), shuffle=False)
+        # NOTE: Defined on MyDataset
+        self.path_key = "path"  # Key in the batch dict that contains image paths
 
     @rank_zero_only
     def log_local(self, save_dir, split, images, global_step, current_epoch, batch_idx):
@@ -65,6 +69,11 @@ class ImageLogger(Callback):
 
         images = pl_module.log_images(batch, split=split, **self.log_images_kwargs)
         for k in images:
+            if k == "conditioning":
+                txt_list = []
+                for idx in range(images[k].shape[0]):
+                    txt_list.append(f"{batch[pl_module.cond_stage_key][idx]}\n\nPath:\n{batch[self.path_key][idx]}")
+                images[k] = log_txt_as_img((512, 512), txt_list, size=16)
             N = min(images[k].shape[0], self.max_images)
             images[k] = images[k][:N]
             if isinstance(images[k], torch.Tensor):
@@ -104,7 +113,7 @@ class ImageLogger(Callback):
                 hasattr(pl_module, "log_images") and
                 callable(pl_module.log_images) and
                 self.max_images > 0):
-            logger = type(pl_module.logger)
+            # logger = type(pl_module.logger)
 
             is_train = pl_module.training
             if is_train:
@@ -114,6 +123,13 @@ class ImageLogger(Callback):
                 images = pl_module.log_images(batch, split=split, **self.log_images_kwargs)
 
             for k in images:
+                # NOTE: Adding path to conditioning images
+                if k == "conditioning":
+                    txt_list = []
+                    for idx in range(images[k].shape[0]):
+                        txt_list.append(f"{batch[pl_module.cond_stage_key][idx]}\n\nPath:\n{batch[self.path_key][idx]}")
+                    images[k] = log_txt_as_img((512, 512), txt_list, size=16)
+                
                 N = min(images[k].shape[0], self.max_images)
                 images[k] = images[k][:N]
                 if isinstance(images[k], torch.Tensor):
