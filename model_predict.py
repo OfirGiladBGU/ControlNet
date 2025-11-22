@@ -45,7 +45,8 @@ def load_model(resume_path):
 
 
 def predict(model, image_path_list, prompt_list, 
-            output_folder_path=None, batch_size=1, return_all_results=False):
+            output_folder_path=None, return_all_results=False, 
+            hyper_params=None):
     """
     Generate images using ControlNet model.
     
@@ -53,14 +54,26 @@ def predict(model, image_path_list, prompt_list,
         image_path_list: Path to the input control image
         prompt_list: Text prompt for generation
         output_folder_path: Folder to save generated images
-        batch_size: Batch size for processing images
         return_all_results: Whether to return all generated images
+        hyper_params: Dictionary of hyper parameters
     Returns:
         List of generated images as numpy arrays
     """
+    # Parse hyper parameters
+    if hyper_params is None:
+        hyper_params = {}
+    batch_size = hyper_params.get('batch_size', 1)
+    sample = hyper_params.get('sample', False)
+    ddim_steps = hyper_params.get('ddim_steps', 50)
+    unconditional_guidance_scale = hyper_params.get('unconditional_guidance_scale', 9.0)
+
     # Preprocess control image
     dataset = DynamicMyDataset(image_path_list, prompt_list)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+
+    # Loop params
+    clamp = True
+    rescale = True
 
     all_results = []
     image_idx = -1
@@ -69,9 +82,16 @@ def predict(model, image_path_list, prompt_list,
 
         results = []
         with torch.no_grad():
-            images = model.log_images(batch, N=batch_size)
+            # images = model.log_images(batch, N=batch_size)
+            images = model.custom_log_images(
+                batch, 
+                N=batch_size, 
+                sample=sample, 
+                ddim_steps=ddim_steps, 
+                unconditional_guidance_scale=unconditional_guidance_scale
+            )
 
-        clamp = True
+        # clamp = True
         for k in images:
             N = images[k].shape[0]
             images[k] = images[k][:N]
@@ -80,7 +100,7 @@ def predict(model, image_path_list, prompt_list,
                 if clamp:
                     images[k] = torch.clamp(images[k], -1., 1.)
 
-        rescale = True
+        # rescale = True
         for k in images:
             if "samples" in k:
                 samples = images[k]
@@ -116,7 +136,8 @@ def predict(model, image_path_list, prompt_list,
 #####################
 # Single Prediction #
 #####################
-def single_predict(model, image_path, prompt, output_folder_path):
+def single_predict(model, image_path, prompt, output_folder_path, 
+                   hyper_params=None):
     """
     Single image prediction function.
     """
@@ -128,6 +149,7 @@ def single_predict(model, image_path, prompt, output_folder_path):
             image_path_list=[image_path],
             prompt_list=[prompt],
             return_all_results=True,
+            hyper_params=hyper_params
         )
         
         # Save results (Single image case)
@@ -153,6 +175,11 @@ def test_predict():
     test_prompt = "red and green"
     test_output_folder_path = './my_outputs/'
 
+    # Hyper parameters
+    hyper_params = dict(
+        batch_size=1,
+    )
+
     ########
     # Flow #
     ########
@@ -163,6 +190,7 @@ def test_predict():
         image_path=test_image_path,
         prompt=test_prompt,
         output_folder_path=test_output_folder_path,
+        hyper_params=hyper_params
     )
     if result is not None:
         print("Prediction completed successfully.")
@@ -173,6 +201,11 @@ def test_predict():
 def test_predict_online():
     resume_path = './lightning_logs/version_5562633/checkpoints/epoch=22-step=274999.ckpt'
     test_output_folder_path = './my_outputs/'
+
+    # Hyper parameters
+    hyper_params = dict(
+        batch_size=1,
+    )
 
     ########
     # Flow #
@@ -197,6 +230,7 @@ def test_predict_online():
             image_path=test_image_path,
             prompt=test_prompt,
             output_folder_path=test_output_folder_path,
+            hyper_params=hyper_params
         )
         if result is not None:
             print("Prediction completed successfully.")
@@ -207,7 +241,8 @@ def test_predict_online():
 ##########################
 # Multi-image Prediction #
 ##########################
-def folder_predict(model, input_folder_path, prompt, output_folder_path, batch_size=1):
+def folder_predict(model, input_folder_path, prompt, output_folder_path, 
+                   hyper_params=None):
     """
     Multi-image prediction function.
     """
@@ -221,8 +256,8 @@ def folder_predict(model, input_folder_path, prompt, output_folder_path, batch_s
             image_path_list=image_path_list,
             prompt_list=prompt_list,
             output_folder_path=output_folder_path,
-            batch_size=batch_size,
             return_all_results=False,
+            hyper_params=hyper_params
         )
         
         return results_count
@@ -241,8 +276,15 @@ def test_predict_folder():
     test_input_folder = './training/data_grads_v3/source'
     test_prompt = "Stippling"
     test_output_path = './training/data_grads_v3/output'
-    batch_size = 4
-    # batch_size = 16  # Max for RTX 6000
+
+    # Hyper parameters
+    hyper_params = dict(
+        # batch_size=16,  # Max for RTX 6000
+        batch_size=4,
+        sample=False,
+        ddim_steps=10,
+        unconditional_guidance_scale=9.0,
+    )
 
     ########
     # Flow #
@@ -255,7 +297,7 @@ def test_predict_folder():
         input_folder_path=test_input_folder,
         prompt=test_prompt,
         output_folder_path=test_output_path,
-        batch_size=batch_size,
+        hyper_params=hyper_params,
     )
     if results_count is not None:
         print("Folder prediction completed successfully.")
