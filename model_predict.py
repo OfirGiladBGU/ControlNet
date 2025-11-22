@@ -69,7 +69,7 @@ def predict(model, image_path_list, prompt_list,
 
         results = []
         with torch.no_grad():
-            images = model.log_images(batch)
+            images = model.log_images(batch, N=batch_size)
 
         clamp = True
         for k in images:
@@ -242,6 +242,7 @@ def test_predict_folder():
     test_prompt = "Stippling"
     test_output_path = './training/data_grads_v3/output'
     batch_size = 4
+    # batch_size = 16  # Max for RTX 6000
 
     ########
     # Flow #
