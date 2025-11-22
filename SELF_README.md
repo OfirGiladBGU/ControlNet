@@ -5,7 +5,7 @@
 For custom training, the following are used:
 - [logger_custom.py](cldm/logger_custom.py) - For exporting results both locally and to WANDB
 - [tutorial_train_sd21_custom.py](tutorial_train_sd21_custom.py) - For training using the "logger_custom"
-- [train_in_background.py](train_in_background.py) - Running the training in the background, without the need to hold interactive session.
+- [run_in_background.py](run_in_background.py) - Running the process in the background, without the need to hold interactive session (Good for long training).
 
 
 For custom prediction, the following are used:
@@ -43,3 +43,8 @@ IMPORTANT:
   cond_stage_key: "txt"
   control_key: "hint"
   ```
+- The output images during training meaning is as follows:
+  - `conditioning` - Input prompt
+  - `control` - Input image (NOT sure if after transformation)
+  - `reconstruction` - GT image (After ControlNet `decode_first_stage`)
+  - `sample_*` - Output image (By the ControlNet `decode_first_stage` after running the `DDIMSampler`)

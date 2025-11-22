@@ -44,13 +44,17 @@ def load_model(resume_path):
     return model
 
 
-def predict(model, image_path_list, prompt_list, batch_size=1):
+def predict(model, image_path_list, prompt_list, 
+            output_folder_path=None, batch_size=1, return_all_results=False):
     """
     Generate images using ControlNet model.
     
     Args:
-        control_image_path: Path to the input control image
-        prompt: Text prompt for generation
+        image_path_list: Path to the input control image
+        prompt_list: Text prompt for generation
+        output_folder_path: Folder to save generated images
+        batch_size: Batch size for processing images
+        return_all_results: Whether to return all generated images
     Returns:
         List of generated images as numpy arrays
     """
@@ -58,8 +62,12 @@ def predict(model, image_path_list, prompt_list, batch_size=1):
     dataset = DynamicMyDataset(image_path_list, prompt_list)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
-    results = []
-    for batch in dataloader: 
+    all_results = []
+    image_idx = -1
+    for idx, batch in enumerate(dataloader): 
+        print(f"Processing batch {idx+1}/{len(dataloader)}...")
+
+        results = []
         with torch.no_grad():
             images = model.log_images(batch)
 
@@ -83,8 +91,26 @@ def predict(model, image_path_list, prompt_list, batch_size=1):
                 samples = (samples * 255).astype(np.uint8)
                 if "samples" in k:
                     results.extend([samples[i] for i in range(samples.shape[0])])
+        
+        # Aggregate results
+        if return_all_results:
+            all_results.extend(results)
+        # Export results
+        else:
+            if output_folder_path is None:
+                raise ValueError("output_folder_path must be specified when return_all_results is False.")
+            
+            for result in tqdm(results):
+                image_idx += 1
+                input_name = pathlib.Path(image_path_list[image_idx]).name
+                output_filepath = os.path.join(output_folder_path, str(input_name))
+                Image.fromarray(result).save(output_filepath)
 
-    return results
+    if return_all_results:
+        return all_results
+    else:
+        results_count = image_idx + 1
+        return results_count
 
 
 #####################
@@ -101,6 +127,7 @@ def single_predict(model, image_path, prompt, output_folder_path):
             model=model,
             image_path_list=[image_path],
             prompt_list=[prompt],
+            return_all_results=True,
         )
         
         # Save results (Single image case)
@@ -135,7 +162,7 @@ def test_predict():
         model=model,
         image_path=test_image_path,
         prompt=test_prompt,
-        output_folder_path=test_output_folder_path
+        output_folder_path=test_output_folder_path,
     )
     if result is not None:
         print("Prediction completed successfully.")
@@ -169,7 +196,7 @@ def test_predict_online():
             model=model,
             image_path=test_image_path,
             prompt=test_prompt,
-            output_folder_path=test_output_folder_path
+            output_folder_path=test_output_folder_path,
         )
         if result is not None:
             print("Prediction completed successfully.")
@@ -185,27 +212,20 @@ def folder_predict(model, input_folder_path, prompt, output_folder_path, batch_s
     Multi-image prediction function.
     """
     if os.path.exists(input_folder_path):
-        image_path_list = pathlib.Path(input_folder_path).glob('*.*')
-        image_path_list = [str(p) for p in image_path_list]
+        image_path_list = sorted(pathlib.Path(input_folder_path).glob('*.*'))
         prompt_list = [prompt] * len(image_path_list)
         
         # Generate image
-        results = predict(
+        results_count = predict(
             model=model,
             image_path_list=image_path_list,
             prompt_list=prompt_list,
-            batch_size=batch_size
+            output_folder_path=output_folder_path,
+            batch_size=batch_size,
+            return_all_results=False,
         )
         
-        # Save results
-        print(f"Saving generated images to {output_folder_path}...")
-        for i, result in tqdm(enumerate(results)):
-            input_name = pathlib.Path(image_path_list[i]).relative_to(input_folder_path)
-            output_filepath = os.path.join(output_folder_path, str(input_name))
-            Image.fromarray(result).save(output_filepath)
-            
-        print(f"Generated {len(results)} images")
-        return results
+        return results_count
     
     # Fallback if test image is not found
     else:
@@ -217,10 +237,11 @@ def test_predict_folder():
     ###########
     # Configs #
     ###########
-    resume_path = './lightning_logs/version_8280725/checkpoints/epoch=0-step=9999.ckpt'
-    test_input_folder = './my_inputs_folder/'
+    resume_path = './lightning_logs/version_8280725/checkpoints/epoch=1-step=19999.ckpt'
+    test_input_folder = './training/data_grads_v3/source'
     test_prompt = "Stippling"
-    test_output_path = './my_outputs_folder/'
+    test_output_path = './training/data_grads_v3/output'
+    batch_size = 4
 
     ########
     # Flow #
@@ -228,14 +249,14 @@ def test_predict_folder():
     os.makedirs(test_output_path, exist_ok=True)
     model = load_model(resume_path)
 
-    results = folder_predict(
+    results_count = folder_predict(
         model=model,
         input_folder_path=test_input_folder,
         prompt=test_prompt,
         output_folder_path=test_output_path,
-        batch_size=4
+        batch_size=batch_size,
     )
-    if results is not None:
+    if results_count is not None:
         print("Folder prediction completed successfully.")
     else:
         print("Folder prediction failed.")

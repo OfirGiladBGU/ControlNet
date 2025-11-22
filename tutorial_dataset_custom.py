@@ -51,8 +51,8 @@ class DynamicMyDataset(Dataset):
         
         for source_path, prompt in zip(image_path_list, prompt_list):
             item = {
-                'source': source_path,
-                'target': source_path,  # Dummy target; replace as needed
+                'source': str(source_path),
+                'target': str(source_path),  # Dummy target; replace as needed
                 'prompt': prompt
             }
             self.data.append(item)

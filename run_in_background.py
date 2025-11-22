@@ -2,9 +2,15 @@ import subprocess
 import platform
 
 
-def launch_training():
-    log_file = "train_sd21.log"
-    script_to_run = "tutorial_train_sd21.py"
+def launch_background_task():
+    # log_file = "train_sd21.log"
+    # script_to_run = "tutorial_train_sd21.py"
+
+    # log_file = "train_sd21_custom_stippling.log"
+    # script_to_run = "tutorial_train_sd21_custom_stippling.py"
+
+    log_file = "model_predict.log"
+    script_to_run = "model_predict.py"
 
     # Open log file in write mode
     with open(log_file, "w") as log:
@@ -29,4 +35,4 @@ def launch_training():
 
 
 if __name__ == "__main__":
-    launch_training()
+    launch_background_task()
