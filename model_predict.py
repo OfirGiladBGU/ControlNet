@@ -282,7 +282,8 @@ def test_predict_folder():
         # batch_size=16,  # Max for RTX 6000
         batch_size=4,
         sample=False,
-        ddim_steps=10,
+        # ddim_steps=50,
+        ddim_steps=5,
         unconditional_guidance_scale=9.0,
     )
 
